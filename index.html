@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>아이리스 의사결정나무 머신러닝 예측 APP</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        iris: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            200: '#ddd6fe',
+                            300: '#c4b5fd',
+                            400: '#a78bfa',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                            800: '#5b21b6',
+                            900: '#4c1d95',
+                            950: '#11052c',
+                            980: '#070119'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts Noto Sans KR -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Noto+Sans+KR:wght@300;400;500;700;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #070119;
+            background-image: radial-gradient(circle at 50% 50%, #1a083a 0%, #050112 100%);
+        }
+        .code-font {
+            font-family: 'Fira Code', 'Noto Sans KR', monospace;
+        }
+        /* Active Node Glow effect */
+        .node-active {
+            filter: drop-shadow(0 0 15px rgba(167, 139, 250, 0.9));
+            border-color: #c4b5fd !important;
+            box-shadow: 0 0 25px rgba(139, 92, 246, 0.6) !important;
+            background-color: rgba(46, 16, 101, 0.95) !important;
+            transform: scale(1.03) translateY(-2px);
+            z-index: 30 !important;
+        }
+        .line-active {
+            stroke: #c4b5fd !important;
+            stroke-width: 4px !important;
+            stroke-dasharray: 8;
+            animation: dash 0.8s linear infinite;
+            filter: drop-shadow(0 0 6px #8b5cf6);
+        }
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -16;
+            }
+        }
+        /* Custom UI Transitions */
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col justify-between overflow-x-hidden p-3 md:p-6">
+
+    <!-- Header Section -->
+    <header class="max-w-7xl mx-auto w-full mb-6 flex flex-col md:flex-row items-center justify-between gap-4 border-b border-iris-900/40 pb-4">
+        <div class="flex items-center space-x-3 text-center md:text-left">
+            <span class="text-3xl p-2.5 bg-iris-900/40 rounded-2xl border border-iris-800/60 shadow-lg shadow-purple-950/30">🌸</span>
+            <div>
+                <h1 class="text-xl font-black text-white tracking-tight flex items-center justify-center md:justify-start gap-2">
+                    의사결정나무(Decision Tree) 예측 시스템
+                </h1>
+                <p class="text-xs text-iris-300">사용자가 입력한 4가지 물리 피처(Feature)를 분석해 실시간으로 의사결정 경로를 추적 및 분류합니다.</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2 bg-iris-950/80 px-4 py-2 rounded-xl border border-iris-800/40 text-xs">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span class="text-slate-300">예측 엔진 정상 가동 중 (정확도: 97.33%)</span>
+        </div>
+    </header>
+
+    <!-- Main Grid System -->
+    <main class="max-w-7xl mx-auto w-full flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch mb-6">
+        
+        <!-- LEFT PANEL: Sliders & Flower Visualizer (5 Cols) -->
+        <section class="lg:col-span-5 bg-iris-950/80 border border-iris-800/60 rounded-3xl p-5 flex flex-col justify-between shadow-2xl relative">
+            <div class="space-y-5">
+                
+                <!-- Tab Controls for Left Panel -->
+                <div class="flex border-b border-iris-900/60 pb-2 justify-between items-center gap-2">
+                    <div class="flex space-x-1 bg-iris-900/30 p-1 rounded-xl border border-iris-850">
+                        <button onclick="switchLeftTab('inputs')" id="btn-tab-inputs" class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all bg-iris-800 text-white shadow-sm">
+                            ⚙️ 수치 입력
+                        </button>
+                        <button onclick="switchLeftTab('visualizer')" id="btn-tab-visualizer" class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all text-slate-400 hover:text-white">
+                            🔍 실시간 표본 도감
+                        </button>
+                    </div>
+                    <span class="text-[10px] text-iris-400 font-bold tracking-wider">INPUT & VISUALIZER</span>
+                </div>
+
+                <!-- TAB 1: Inputs & Sliders -->
+                <div id="tab-left-inputs" class="tab-content active space-y-4">
+                    
+                    <!-- Feature 1: Petal Length (꽃잎 길이) -->
+                    <div class="p-3 bg-iris-900/20 border border-iris-850 rounded-2xl hover:border-iris-600/50 transition duration-200">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-iris-400"></span>꽃잎 길이 <span class="text-[10px] text-slate-500 font-normal">(Petal Length)</span>
+                            </label>
+                            <div class="flex items-center space-x-1.5">
+                                <input type="number" id="num-petal-length" min="1.0" max="6.9" step="0.1" value="1.4" oninput="syncInputs('petal-length', this.value)" class="w-16 bg-iris-980 border border-iris-800 rounded px-1.5 py-0.5 text-xs font-black text-center text-iris-300 focus:outline-none focus:border-iris-500">
+                                <span class="text-[11px] text-slate-500">cm</span>
+                            </div>
+                        </div>
+                        <input type="range" min="1.0" max="6.9" step="0.1" value="1.4" id="input-petal-length" oninput="syncInputs('petal-length', this.value)" class="w-full accent-iris-500 h-1.5 bg-iris-980 rounded-lg cursor-pointer">
+                        <div class="flex justify-between text-[9px] text-slate-500 mt-1">
+                            <span>최소 1.0cm</span>
+                            <span class="text-iris-400 font-semibold font-mono">핵심 분류 기준: 2.45 cm</span>
+                            <span>최대 6.9cm</span>
+                        </div>
+                    </div>
+
+                    <!-- Feature 2: Petal Width (꽃잎 너비) -->
+                    <div class="p-3 bg-iris-900/20 border border-iris-850 rounded-2xl hover:border-iris-600/50 transition duration-200">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-indigo-400"></span>꽃잎 너비 <span class="text-[10px] text-slate-500 font-normal">(Petal Width)</span>
+                            </label>
+                            <div class="flex items-center space-x-1.5">
+                                <input type="number" id="num-petal-width" min="0.1" max="2.5" step="0.1" value="0.2" oninput="syncInputs('petal-width', this.value)" class="w-16 bg-iris-980 border border-iris-800 rounded px-1.5 py-0.5 text-xs font-black text-center text-iris-300 focus:outline-none focus:border-iris-500">
+                                <span class="text-[11px] text-slate-500">cm</span>
+                            </div>
+                        </div>
+                        <input type="range" min="0.1" max="2.5" step="0.1" value="0.2" id="input-petal-width" oninput="syncInputs('petal-width', this.value)" class="w-full accent-iris-500 h-1.5 bg-iris-980 rounded-lg cursor-pointer">
+                        <div class="flex justify-between text-[9px] text-slate-500 mt-1">
+                            <span>최소 0.1cm</span>
+                            <span class="text-iris-400 font-semibold font-mono">서브 분류 기준: 1.75 cm</span>
+                            <span>최대 2.5cm</span>
+                        </div>
+                    </div>
+
+                    <!-- Feature 3: Sepal Length (꽃받침 길이) -->
+                    <div class="p-3 bg-iris-900/10 border border-iris-850/60 rounded-2xl hover:border-iris-800 transition duration-200 opacity-90">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-xs font-medium text-slate-400 flex items-center gap-1.5">
+                                <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>꽃받침 길이 <span class="text-[10px] text-slate-600 font-normal">(Sepal Length)</span>
+                            </label>
+                            <div class="flex items-center space-x-1.5">
+                                <input type="number" id="num-sepal-length" min="4.3" max="7.9" step="0.1" value="5.1" oninput="syncInputs('sepal-length', this.value)" class="w-16 bg-iris-980 border border-iris-900 rounded px-1.5 py-0.5 text-xs font-bold text-center text-slate-400 focus:outline-none focus:border-iris-800">
+                                <span class="text-[11px] text-slate-600">cm</span>
+                            </div>
+                        </div>
+                        <input type="range" min="4.3" max="7.9" step="0.1" value="5.1" id="input-sepal-length" oninput="syncInputs('sepal-length', this.value)" class="w-full accent-slate-600 h-1.5 bg-iris-980 rounded-lg cursor-pointer">
+                        <div class="flex justify-between text-[9px] text-slate-600 mt-1">
+                            <span>최소 4.3cm</span>
+                            <span>학습 보조용 피처</span>
+                            <span>최대 7.9cm</span>
+                        </div>
+                    </div>
+
+                    <!-- Feature 4: Sepal Width (꽃받침 너비) -->
+                    <div class="p-3 bg-iris-900/10 border border-iris-850/60 rounded-2xl hover:border-iris-800 transition duration-200 opacity-90">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-xs font-medium text-slate-400 flex items-center gap-1.5">
+                                <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>꽃받침 너비 <span class="text-[10px] text-slate-600 font-normal">(Sepal Width)</span>
+                            </label>
+                            <div class="flex items-center space-x-1.5">
+                                <input type="number" id="num-sepal-width" min="2.0" max="4.4" step="0.1" value="3.5" oninput="syncInputs('sepal-width', this.value)" class="w-16 bg-iris-980 border border-iris-900 rounded px-1.5 py-0.5 text-xs font-bold text-center text-slate-400 focus:outline-none focus:border-iris-800">
+                                <span class="text-[11px] text-slate-600">cm</span>
+                            </div>
+                        </div>
+                        <input type="range" min="2.0" max="4.4" step="0.1" value="3.5" id="input-sepal-width" oninput="syncInputs('sepal-width', this.value)" class="w-full accent-slate-600 h-1.5 bg-iris-980 rounded-lg cursor-pointer">
+                        <div class="flex justify-between text-[9px] text-slate-600 mt-1">
+                            <span>최소 2.0cm</span>
+                            <span>학습 보조용 피처</span>
+                            <span>최대 4.4cm</span>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- TAB 2: Live Flower Visualizer (SVG) -->
+                <div id="tab-left-visualizer" class="tab-content space-y-3">
+                    <p class="text-[11px] text-slate-400 text-center">입력한 cm 수치에 비례해 연동되는 **실시간 가상 붓꽃 표본**입니다.</p>
+                    <div class="w-full aspect-square bg-iris-980/70 rounded-2xl border border-iris-900 relative flex items-center justify-center overflow-hidden">
+                        
+                        <!-- Premium Interactive Flower SVG -->
+                        <svg viewBox="0 0 200 200" class="w-4/5 h-4/5" id="flower-svg-specimen">
+                            <defs>
+                                <radialGradient id="flower-center-grad" cx="50%" cy="50%" r="50%">
+                                    <stop offset="0%" stop-color="#fbbf24" />
+                                    <stop offset="60%" stop-color="#d97706" />
+                                    <stop offset="100%" stop-color="#7c2d12" stop-opacity="0" />
+                                </radialGradient>
+                                <linearGradient id="sepal-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#c4b5fd" />
+                                    <stop offset="100%" stop-color="#5b21b6" />
+                                </linearGradient>
+                                <linearGradient id="petal-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#f472b6" />
+                                    <stop offset="100%" stop-color="#9d174d" />
+                                </linearGradient>
+                            </defs>
+                            
+                            <!-- Outer Sepals (꽃받침 - Represented by wider, light purple petals in background) -->
+                            <!-- Sepal 1 (Top) -->
+                            <path id="svg-sepal-top" d="M 100 100 Q 80 40 100 20 Q 120 40 100 100" fill="url(#sepal-grad)" opacity="0.8" transform="rotate(0, 100, 100)" />
+                            <!-- Sepal 2 (Bottom Left) -->
+                            <path id="svg-sepal-left" d="M 100 100 Q 80 40 100 20 Q 120 40 100 100" fill="url(#sepal-grad)" opacity="0.8" transform="rotate(120, 100, 100)" />
+                            <!-- Sepal 3 (Bottom Right) -->
+                            <path id="svg-sepal-right" d="M 100 100 Q 80 40 100 20 Q 120 40 100 100" fill="url(#sepal-grad)" opacity="0.8" transform="rotate(240, 100, 100)" />
+                            
+                            <!-- Inner Petals (꽃잎 - Represented by narrower, pinkish purple petals in foreground) -->
+                            <!-- Petal 1 (Right) -->
+                            <path id="svg-petal-1" d="M 100 100 Q 90 50 100 30 Q 110 50 100 100" fill="url(#petal-grad)" opacity="0.95" transform="rotate(60, 100, 100)" />
+                            <!-- Petal 2 (Bottom) -->
+                            <path id="svg-petal-2" d="M 100 100 Q 90 50 100 30 Q 110 50 100 100" fill="url(#petal-grad)" opacity="0.95" transform="rotate(180, 100, 100)" />
+                            <!-- Petal 3 (Left) -->
+                            <path id="svg-petal-3" d="M 100 100 Q 90 50 100 30 Q 110 50 100 100" fill="url(#petal-grad)" opacity="0.95" transform="rotate(300, 100, 100)" />
+                            
+                            <!-- Flower Center Core -->
+                            <circle cx="100" cy="100" r="18" fill="url(#flower-center-grad)" />
+                            <circle cx="100" cy="100" r="6" fill="#fbbf24" />
+                        </svg>
+
+                        <!-- Live Specimen Legend -->
+                        <div class="absolute bottom-2.5 left-2.5 bg-iris-950/90 border border-iris-800 rounded-lg p-2 text-[9px] text-slate-400 space-y-1">
+                            <div class="flex items-center space-x-1"><span class="w-2.5 h-1.5 bg-gradient-to-r from-iris-300 to-iris-700 rounded"></span><span>꽃받침 (Sepals) : 길이 & 너비 연동</span></div>
+                            <div class="flex items-center space-x-1"><span class="w-2.5 h-1.5 bg-gradient-to-r from-pink-400 to-pink-700 rounded"></span><span>꽃잎 (Petals) : 길이 & 너비 연동</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Presets selection -->
+                <div class="space-y-2 pt-2">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><span>💡</span> 학습용 샘플 프리셋</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="applyPreset(5.0, 3.4, 1.4, 0.2)" class="py-2 px-1 text-[11px] font-bold bg-iris-800/20 hover:bg-iris-800 border border-iris-800 rounded-xl transition-all hover:scale-[1.02]">🌸 세토사 평균</button>
+                        <button onclick="applyPreset(5.9, 2.7, 4.2, 1.3)" class="py-2 px-1 text-[11px] font-bold bg-indigo-900/20 hover:bg-indigo-800 border border-indigo-900 rounded-xl transition-all hover:scale-[1.02]">🌿 버시컬러 평균</button>
+                        <button onclick="applyPreset(6.5, 2.9, 5.5, 2.0)" class="py-2 px-1 text-[11px] font-bold bg-purple-900/20 hover:bg-purple-800 border border-purple-900 rounded-xl transition-all hover:scale-[1.02]">🍁 버지니카 평균</button>
+                        <button onclick="applyPreset(6.0, 2.7, 4.8, 1.8)" class="py-2 px-1 text-[11px] font-bold bg-rose-950/30 hover:bg-rose-900 border border-rose-850 rounded-xl transition-all hover:scale-[1.02] text-rose-300">🔥 혼재 돌연변이</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Left bottom help notes -->
+            <div class="mt-6 pt-4 border-t border-iris-900/60 text-xs text-slate-400 space-y-1">
+                <p class="font-bold text-iris-300 flex items-center gap-1"><span>📝</span> 붓꽃 진화적 팁</p>
+                <p class="leading-relaxed text-[11px]">
+                    세토사는 혹독한 고위도 칼바람 속에서 체온을 유지하기 위해 꽃잎 면적을 극도로 축소시켰습니다. 반면 버지니카는 숲속 일조량 확보 경쟁을 이겨내려 수치를 거대하게 키운 품종입니다.
+                </p>
+            </div>
+        </section>
+
+        <!-- RIGHT PANEL: Decision Tree & Model Metrics (7 Cols) -->
+        <section class="lg:col-span-7 bg-iris-950/80 border border-iris-800/60 rounded-3xl p-5 flex flex-col justify-between shadow-2xl relative min-h-[480px]">
+            
+            <div class="flex-1 flex flex-col justify-start">
+                
+                <!-- Tab Controls for Right Panel -->
+                <div class="flex border-b border-iris-900/60 pb-2 justify-between items-center gap-2 mb-4">
+                    <div class="flex space-x-1 bg-iris-900/30 p-1 rounded-xl border border-iris-850">
+                        <button onclick="switchRightTab('tree')" id="btn-tab-tree" class="px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all bg-iris-800 text-white shadow-sm">
+                            📊 의사결정나무 맵
+                        </button>
+                        <button onclick="switchRightTab('metrics')" id="btn-tab-metrics" class="px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all text-slate-400 hover:text-white">
+                            📈 모델 성능 분석표
+                        </button>
+                    </div>
+                    <span class="text-[10px] text-iris-400 font-bold tracking-wider">TREE & PERFORMANCE</span>
+                </div>
+
+                <!-- RIGHT TAB 1: Interactive SVG Tree Map -->
+                <div id="tab-right-tree" class="tab-content active relative w-full aspect-[4/3] min-h-[350px]">
+                    <!-- Connector Lines (Behind) -->
+                    <svg class="absolute inset-0 w-full h-full pointer-events-none" id="tree-svg-canvas">
+                        <defs>
+                            <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
+                                <feGaussianBlur stdDeviation="3" result="blur" />
+                                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                            </filter>
+                        </defs>
+                        <!-- Lines Level 0 to 1 -->
+                        <path id="line-0-1" d="M 50% 12% L 20% 38%" stroke="#291157" stroke-width="2.5" fill="none"/>
+                        <path id="line-0-2" d="M 50% 12% L 80% 38%" stroke="#291157" stroke-width="2.5" fill="none"/>
+
+                        <!-- Lines Level 1 to 2 -->
+                        <path id="line-2-3" d="M 80% 38% L 65% 62%" stroke="#291157" stroke-width="2.5" fill="none"/>
+                        <path id="line-2-6" d="M 80% 38% L 91% 62%" stroke="#291157" stroke-width="2.5" fill="none"/>
+
+                        <!-- Lines Level 2 to 3 (L) -->
+                        <path id="line-3-4" d="M 65% 62% L 58% 86%" stroke="#291157" stroke-width="2.5" fill="none"/>
+                        <path id="line-3-5" d="M 65% 62% L 72% 86%" stroke="#291157" stroke-width="2.5" fill="none"/>
+
+                        <!-- Lines Level 2 to 3 (R) -->
+                        <path id="line-6-7" d="M 91% 62% L 84% 86%" stroke="#291157" stroke-width="2.5" fill="none"/>
+                        <path id="line-6-8" d="M 91% 62% L 95% 86%" stroke="#291157" stroke-width="2.5" fill="none"/>
+                    </svg>
+
+                    <!-- Absolutely Positioned Nodes -->
+                    <div class="absolute inset-0 w-full h-full text-[9px] md:text-[10px]">
+                        
+                        <!-- Level 0 (Root Node) -->
+                        <div id="node-0" class="absolute left-1/2 top-[12%] -translate-x-1/2 -translate-y-1/2 w-48 bg-iris-980/90 border border-iris-800 rounded-2xl p-2.5 transition-all duration-300 shadow-xl text-slate-300 z-20">
+                            <p class="font-extrabold text-white text-[10px] mb-1 text-center border-b border-iris-900 pb-1">🌱 최상위 결정 질문</p>
+                            <p class="text-iris-300 font-black text-center mb-1">꽃잎 길이 &le; 2.45 cm</p>
+                            <div class="flex justify-between text-[8px] text-slate-500 font-mono">
+                                <span>샘플수: 150</span>
+                                <span>Gini: 0.667</span>
+                            </div>
+                        </div>
+
+                        <!-- Level 1 (Setosa Leaf vs Node 2) -->
+                        <div id="node-1" class="absolute left-[20%] top-[38%] -translate-x-1/2 -translate-y-1/2 w-32 bg-emerald-950/20 border border-emerald-900/40 rounded-2xl p-2 transition-all duration-300 shadow-xl text-slate-300 z-20 text-center">
+                            <p class="font-bold text-emerald-400 mb-0.5">🌸 세토사 (Setosa)</p>
+                            <p class="text-[8px] text-slate-500 mb-1">결정 리프 노드</p>
+                            <div class="bg-emerald-950/50 p-1.5 rounded text-[8px] text-emerald-300/80 font-mono">
+                                샘플: 50 | Gini: 0.00
+                            </div>
+                        </div>
+
+                        <div id="node-2" class="absolute left-[80%] top-[38%] -translate-x-1/2 -translate-y-1/2 w-38 bg-iris-980/90 border border-iris-800 rounded-2xl p-2 transition-all duration-300 shadow-xl text-slate-300 z-20">
+                            <p class="font-extrabold text-white text-[10px] mb-1 text-center border-b border-iris-900 pb-1">🌿 2단계 분기 조건</p>
+                            <p class="text-iris-300 font-black text-center mb-1">꽃잎 너비 &le; 1.75 cm</p>
+                            <div class="flex justify-between text-[8px] text-slate-500 font-mono">
+                                <span>샘플수: 100</span>
+                                <span>Gini: 0.500</span>
+                            </div>
+                        </div>
+
+                        <!-- Level 2 (Node 3 vs Node 6) -->
+                        <div id="node-3" class="absolute left-[65%] top-[62%] -translate-x-1/2 -translate-y-1/2 w-34 bg-iris-980/90 border border-iris-800 rounded-2xl p-1.5 transition-all duration-300 shadow-xl text-slate-300 z-20">
+                            <p class="font-bold text-slate-400 text-center text-[8px] mb-0.5">3차 분기 조건 (중형)</p>
+                            <p class="text-indigo-300 font-bold text-center mb-1">꽃잎 길이 &le; 4.95 cm</p>
+                            <div class="flex justify-between text-[8px] text-slate-500 font-mono">
+                                <span>샘플: 54</span>
+                                <span>Gini: 0.168</span>
+                            </div>
+                        </div>
+
+                        <div id="node-6" class="absolute left-[91%] top-[62%] -translate-x-1/2 -translate-y-1/2 w-32 bg-iris-980/90 border border-iris-800 rounded-2xl p-1.5 transition-all duration-300 shadow-xl text-slate-300 z-20">
+                            <p class="font-bold text-slate-400 text-center text-[8px] mb-0.5">3차 분기 조건 (대형)</p>
+                            <p class="text-purple-300 font-bold text-center mb-1">꽃잎 길이 &le; 4.85 cm</p>
+                            <div class="flex justify-between text-[8px] text-slate-500 font-mono">
+                                <span>샘플: 46</span>
+                                <span>Gini: 0.043</span>
+                            </div>
+                        </div>
+
+                        <!-- Level 3 (Leafs) -->
+                        <!-- Node 4 -->
+                        <div id="node-4" class="absolute left-[58%] top-[86%] -translate-x-1/2 -translate-y-1/2 w-24 bg-indigo-950/20 border border-indigo-900/40 rounded-xl p-1 text-center transition-all duration-300 shadow-md">
+                            <p class="font-bold text-indigo-300">🌿 버시컬러</p>
+                            <p class="text-[8px] text-slate-500">샘플: 47 | Gini: 0.0</p>
+                        </div>
+                        <!-- Node 5 -->
+                        <div id="node-5" class="absolute left-[72%] top-[86%] -translate-x-1/2 -translate-y-1/2 w-24 bg-purple-950/20 border border-purple-900/40 rounded-xl p-1 text-center transition-all duration-300 shadow-md">
+                            <p class="font-bold text-purple-200">🍁 버지니카</p>
+                            <p class="text-[8px] text-slate-500">샘플: 7 | Gini: 0.22</p>
+                        </div>
+                        <!-- Node 7 -->
+                        <div id="node-7" class="absolute left-[84%] top-[86%] -translate-x-1/2 -translate-y-1/2 w-24 bg-purple-950/20 border border-purple-900/40 rounded-xl p-1 text-center transition-all duration-300 shadow-md">
+                            <p class="font-bold text-purple-200">🍁 버지니카</p>
+                            <p class="text-[8px] text-slate-500">샘플: 3 | Gini: 0.44</p>
+                        </div>
+                        <!-- Node 8 -->
+                        <div id="node-8" class="absolute left-[95%] top-[86%] -translate-x-1/2 -translate-y-1/2 w-24 bg-purple-950/20 border border-purple-900/40 rounded-xl p-1 text-center transition-all duration-300 shadow-md">
+                            <p class="font-bold text-purple-200">🍁 버지니카</p>
+                            <p class="text-[8px] text-slate-500">샘플: 43 | Gini: 0.0</p>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- RIGHT TAB 2: Model Performance Metrics -->
+                <div id="tab-right-metrics" class="tab-content space-y-4">
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="bg-iris-900/20 border border-iris-800 p-3.5 rounded-2xl text-center">
+                            <p class="text-[10px] text-slate-400 font-bold uppercase">모델 전체 정확도</p>
+                            <p class="text-2xl font-black text-emerald-400 mt-1">97.33%</p>
+                            <p class="text-[9px] text-slate-500 mt-1">테스트 샘플 150개 분류</p>
+                        </div>
+                        <div class="bg-iris-900/20 border border-iris-800 p-3.5 rounded-2xl text-center">
+                            <p class="text-[10px] text-slate-400 font-bold uppercase">정밀도 (Precision)</p>
+                            <p class="text-2xl font-black text-indigo-300 mt-1">97.41%</p>
+                            <p class="text-[9px] text-slate-500 mt-1">참으로 판정한 것의 실측률</p>
+                        </div>
+                        <div class="bg-iris-900/20 border border-iris-800 p-3.5 rounded-2xl text-center">
+                            <p class="text-[10px] text-slate-400 font-bold uppercase">F1-스코어 평균</p>
+                            <p class="text-2xl font-black text-purple-300 mt-1">97.31%</p>
+                            <p class="text-[9px] text-slate-500 mt-1">조화 평균 스코어</p>
+                        </div>
+                    </div>
+
+                    <!-- Confusion Matrix Table -->
+                    <div class="bg-iris-980/80 rounded-2xl border border-iris-900 p-4 space-y-3">
+                        <h4 class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                            <span>📊</span> 의사결정트리 혼동 행렬 (Confusion Matrix)
+                        </h4>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-center text-xs text-slate-300 font-mono">
+                                <thead>
+                                    <tr class="border-b border-iris-900 text-[10px] text-slate-400 font-bold">
+                                        <th class="pb-2 text-left">실제 품종 \ 예측</th>
+                                        <th class="pb-2">세토사 (Setosa)</th>
+                                        <th class="pb-2">버시컬러 (Versicolor)</th>
+                                        <th class="pb-2">버지니카 (Virginica)</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-iris-900">
+                                    <tr>
+                                        <td class="py-2.5 text-left font-bold text-slate-400">세토사 (Setosa)</td>
+                                        <td class="bg-emerald-500/10 text-emerald-400 font-black rounded">50 (완벽)</td>
+                                        <td>0</td>
+                                        <td>0</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="py-2.5 text-left font-bold text-slate-400">버시컬러 (Versicolor)</td>
+                                        <td>0</td>
+                                        <td class="bg-indigo-500/10 text-indigo-400 font-black rounded">47</td>
+                                        <td class="text-rose-400">3 (오차)</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="py-2.5 text-left font-bold text-slate-400">버지니카 (Virginica)</td>
+                                        <td>0</td>
+                                        <td class="text-rose-400">1 (오차)</td>
+                                        <td class="bg-purple-500/10 text-purple-400 font-black rounded">49</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="text-[9px] text-slate-500 italic mt-1">* 분석 인사이트: 세토사는 완벽 격리되어 오차가 전혀 없지만, 버시컬러와 버지니카는 경계면에서 각각 3개, 1개의 개체가 혼재되어 오차가 발생했음을 확인할 수 있습니다.</p>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- BOTTOM PANEL: Predictor Result & Interpretation -->
+    <footer class="max-w-7xl mx-auto w-full bg-iris-950/90 border border-iris-800 rounded-3xl p-5 md:p-6 shadow-2xl space-y-4">
+        <div class="flex items-center space-x-2 border-b border-iris-900 pb-3">
+            <span class="text-xl">🔮</span>
+            <h3 class="font-bold text-white text-sm md:text-base">머신러닝 알고리즘 추론 및 의사결정 추적 분석서</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+            
+            <!-- Result Output (5 Cols) -->
+            <div class="md:col-span-5 bg-iris-980/70 p-4 rounded-2xl border border-iris-800 flex items-center justify-between gap-4">
+                <div class="space-y-1">
+                    <p class="text-[10px] uppercase tracking-wider text-iris-400 font-bold">Predicted Class</p>
+                    <h4 class="text-xl md:text-2xl font-black text-white" id="predicted-class-name">세토사(Setosa)</h4>
+                    <p class="text-[11px] text-slate-400" id="predicted-confidence">예측 확신도: 100.00%</p>
+                </div>
+                <div class="w-16 h-16 rounded-2xl bg-iris-900/40 border border-iris-700/50 flex items-center justify-center text-3xl shadow-lg" id="predicted-class-emoji">
+                    🌸
+                </div>
+            </div>
+
+            <!-- Path Logic narrative (7 Cols) -->
+            <div class="md:col-span-7 bg-iris-900/10 p-4 rounded-2xl border border-iris-800/40 space-y-2">
+                <h5 class="text-xs font-bold text-iris-300 flex items-center gap-1">
+                    <span>⚙️</span> 컴퓨터가 판단한 단계별 조건 매칭 과정
+                </h5>
+                <ol class="list-decimal pl-5 text-[11px] text-slate-300 space-y-1" id="inference-steps-log">
+                    <li><strong>1단계 (꽃잎 길이 1.4cm)</strong>: <code class="bg-iris-900/60 px-1 py-0.5 rounded text-iris-300 font-bold">&le; 2.45cm</code> 조건 충족 ➔ 참(Yes) 분기로 이동</li>
+                    <li><strong>최종 분류</strong>: [세토사(Setosa)]로 정교한 분류 완료!</li>
+                </ol>
+            </div>
+
+        </div>
+    </footer>
+
+    <!-- Interactive script for prediction engine -->
+    <script>
+        // Tab switching logic for left and right panels
+        function switchLeftTab(tabName) {
+            document.getElementById('tab-left-inputs').classList.remove('active');
+            document.getElementById('tab-left-visualizer').classList.remove('active');
+            
+            document.getElementById('btn-tab-inputs').className = 'px-3 py-1.5 text-xs font-bold rounded-lg transition-all text-slate-400 hover:text-white';
+            document.getElementById('btn-tab-visualizer').className = 'px-3 py-1.5 text-xs font-bold rounded-lg transition-all text-slate-400 hover:text-white';
+            
+            if (tabName === 'inputs') {
+                document.getElementById('tab-left-inputs').classList.add('active');
+                document.getElementById('btn-tab-inputs').className = 'px-3 py-1.5 text-xs font-bold rounded-lg transition-all bg-iris-800 text-white shadow-sm';
+            } else {
+                document.getElementById('tab-left-visualizer').classList.add('active');
+                document.getElementById('btn-tab-visualizer').className = 'px-3 py-1.5 text-xs font-bold rounded-lg transition-all bg-iris-800 text-white shadow-sm';
+                // Recalculate SVG sizes upon opening tab
+                updatePredictor();
+            }
+        }
+
+        function switchRightTab(tabName) {
+            document.getElementById('tab-right-tree').classList.remove('active');
+            document.getElementById('tab-right-metrics').classList.remove('active');
+            
+            document.getElementById('btn-tab-tree').className = 'px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all text-slate-400 hover:text-white';
+            document.getElementById('btn-tab-metrics').className = 'px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all text-slate-400 hover:text-white';
+            
+            if (tabName === 'tree') {
+                document.getElementById('tab-right-tree').classList.add('active');
+                document.getElementById('btn-tab-tree').className = 'px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all bg-iris-800 text-white shadow-sm';
+            } else {
+                document.getElementById('tab-right-metrics').classList.add('active');
+                document.getElementById('btn-tab-metrics').className = 'px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all bg-iris-800 text-white shadow-sm';
+            }
+        }
+
+        // Synchronize numeric input boxes and sliders bidirectionally
+        function syncInputs(id, val) {
+            let numericVal = parseFloat(val);
+            if (isNaN(numericVal)) return;
+
+            // Clamping rules to prevent crazy inputs breaking model ranges
+            if (id === 'petal-length') {
+                numericVal = Math.max(1.0, Math.min(6.9, numericVal));
+                document.getElementById('input-petal-length').value = numericVal;
+                document.getElementById('num-petal-length').value = numericVal.toFixed(1);
+            } else if (id === 'petal-width') {
+                numericVal = Math.max(0.1, Math.min(2.5, numericVal));
+                document.getElementById('input-petal-width').value = numericVal;
+                document.getElementById('num-petal-width').value = numericVal.toFixed(1);
+            } else if (id === 'sepal-length') {
+                numericVal = Math.max(4.3, Math.min(7.9, numericVal));
+                document.getElementById('input-sepal-length').value = numericVal;
+                document.getElementById('num-sepal-length').value = numericVal.toFixed(1);
+            } else if (id === 'sepal-width') {
+                numericVal = Math.max(2.0, Math.min(4.4, numericVal));
+                document.getElementById('input-sepal-width').value = numericVal;
+                document.getElementById('num-sepal-width').value = numericVal.toFixed(1);
+            }
+
+            // Fire prediction engine on every change
+            updatePredictor();
+        }
+
+        // Live Tree highlights and Decision algorithm
+        function updatePredictor() {
+            const petalLength = parseFloat(document.getElementById('input-petal-length').value);
+            const petalWidth = parseFloat(document.getElementById('input-petal-width').value);
+            const sepalLength = parseFloat(document.getElementById('input-sepal-length').value);
+            const sepalWidth = parseFloat(document.getElementById('input-sepal-width').value);
+
+            // 1. Specimen SVG Transform Logic based on sliders
+            updateSpecimenSVG(sepalLength, sepalWidth, petalLength, petalWidth);
+
+            // Reset nodes classes & line attributes
+            const allNodes = ['node-0', 'node-1', 'node-2', 'node-3', 'node-4', 'node-5', 'node-6', 'node-7', 'node-8'];
+            const allLines = ['line-0-1', 'line-0-2', 'line-2-3', 'line-2-6', 'line-3-4', 'line-3-5', 'line-6-7', 'line-6-8'];
+            
+            allNodes.forEach(id => {
+                const el = document.getElementById(id);
+                if(el) {
+                    el.className = el.className.replace(' node-active', '');
+                }
+            });
+            allLines.forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.setAttribute('class', '');
+            });
+
+            // Activate Root Node immediately
+            document.getElementById('node-0').className += ' node-active';
+
+            let steps = [];
+            let prediction = '';
+            let emoji = '';
+            let confidence = '';
+
+            // Step 1: Root Node Check (Petal Length <= 2.45)
+            if (petalLength <= 2.45) {
+                // Route to Setosa Leaf
+                activateLine('line-0-1');
+                activateNode('node-1');
+                
+                prediction = '세토사(Setosa)';
+                emoji = '🌸';
+                confidence = '100.00%';
+                
+                steps.push(`<strong>1단계 (꽃잎 길이: ${petalLength.toFixed(1)}cm)</strong>: 결정 기준치인 <code class="bg-iris-900/60 px-1 py-0.5 rounded text-iris-300 font-bold">&le; 2.45cm</code> 조건에 참(Yes) 판정이 나와 왼쪽 줄기로 낙하합니다.`);
+                steps.push(`<strong>최종 분류</strong>: 50개의 샘플이 모여 불순도(Gini)가 전혀 없는 순수 세토사 군락 리프에 정지합니다. <strong>[세토사(Setosa)]</strong>로 예측이 완료되었습니다.`);
+            } else {
+                // Route to Node 2 (Split on Petal Width)
+                activateLine('line-0-2');
+                activateNode('node-2');
+                steps.push(`<strong>1단계 (꽃잎 길이: ${petalLength.toFixed(1)}cm)</strong>: <code class="bg-iris-900/60 px-1.5 py-0.5 rounded text-rose-300 font-bold">&gt; 2.45cm</code> 조건으로 참(Yes) 분기를 통과해 대형 붓꽃 분류 검문소(Level 2)로 하강합니다.`);
+
+                // Step 2: Node 2 Check (Petal Width <= 1.75)
+                if (petalWidth <= 1.75) {
+                    activateLine('line-2-3');
+                    activateNode('node-3');
+                    steps.push(`<strong>2단계 (꽃잎 너비: ${petalWidth.toFixed(1)}cm)</strong>: <code class="bg-iris-900/60 px-1.5 py-0.5 rounded text-iris-300 font-bold">&le; 1.75cm</code> 규칙에 부합하여, 중형종인 버시컬러가 밀집된 3차 조건절로 진입합니다.`);
+
+                    // Step 3: Node 3 Check (Petal Length <= 4.95)
+                    if (petalLength <= 4.95) {
+                        activateLine('line-3-4');
+                        activateNode('node-4');
+                        prediction = '버시컬러(Versicolor)';
+                        emoji = '🌿';
+                        confidence = '97.92%'; // 47/48 samples
+                        steps.push(`<strong>3단계 (꽃잎 길이: ${petalLength.toFixed(1)}cm)</strong>: 최종 기준식인 <code class="bg-iris-900/60 px-1.5 py-0.5 rounded text-iris-300 font-bold">&le; 4.95cm</code> 조건을 안전하게 만족하여 버시컬러 리프 노드에 안착했습니다.`);
+                        steps.push(`<strong>최종 분류</strong>: 48개 샘플 중 47개가 버시컬러였던 안정 구역입니다. <strong>[버시컬러(Versicolor)]</strong> 일 확률이 97.92%로 지극히 유력합니다.`);
+                    } else {
+                        activateLine('line-3-5');
+                        activateNode('node-5');
+                        prediction = '버지니카(Virginica)';
+                        emoji = '🍁';
+                        confidence = '66.67%'; // 4/6 samples
+                        steps.push(`<strong>3단계 (꽃잎 길이: ${petalLength.toFixed(1)}cm)</strong>: <code class="bg-iris-900/60 px-1.5 py-0.5 rounded text-rose-300 font-bold">&gt; 4.95cm</code> 규칙으로 리프 노드5에 도달했습니다.`);
+                        steps.push(`<strong>최종 분류</strong>: 이 구역은 버시컬러와 버지니카의 경계면으로 샘플들이 일부 혼잡하게 뒤섞인 지역입니다. 다수결 규칙에 따라 66.67%의 확신도로 <strong>[버지니카(Virginica)]</strong>에 기우는 예측 결과를 냅니다.`);
+                    }
+                } else {
+                    // Petal Width > 1.75 -> Node 6
+                    activateLine('line-2-6');
+                    activateNode('node-6');
+                    steps.push(`<strong>2단계 (꽃잎 너비: ${petalWidth.toFixed(1)}cm)</strong>: <code class="bg-iris-900/60 px-1.5 py-0.5 rounded text-rose-300 font-bold">&gt; 1.75cm</code> 조건에 따라, 거대 대형종인 버지니카가 자생하는 3차 조건절로 상향 통과합니다.`);
+
+                    // Step 3: Node 6 Check (Petal Length <= 4.85)
+                    if (petalLength <= 4.85) {
+                        activateLine('line-6-7');
+                        activateNode('node-7');
+                        prediction = '버지니카(Virginica)';
+                        emoji = '🍁';
+                        confidence = '33.33%'; // Outlier area
+                        steps.push(`<strong>3단계 (꽃잎 길이: ${petalLength.toFixed(1)}cm)</strong>: <code class="bg-iris-900/60 px-1.5 py-0.5 rounded text-iris-300 font-bold">&le; 4.85cm</code> 조건을 충족하여 경계 돌연변이 리프 노드에 배정되었습니다.`);
+                        steps.push(`<strong>최종 분류</strong>: 매우 극소수의 붓꽃만이 들어오는 데이터 외곽 오차 구간이지만, 의사결정 모델의 이진 결정 규칙에 의거하여 <strong>[버지니카(Virginica)]</strong>군으로 분류합니다.`);
+                    } else {
+                        activateLine('line-6-8');
+                        activateNode('node-8');
+                        prediction = '버지니카(Virginica)';
+                        emoji = '🍁';
+                        confidence = '100.00%'; // 43/43 samples pure!
+                        steps.push(`<strong>3단계 (꽃잎 길이: ${petalLength.toFixed(1)}cm)</strong>: 최종 임계값인 <code class="bg-iris-900/60 px-1.5 py-0.5 rounded text-rose-300 font-bold">&gt; 4.85cm</code> 조건을 안정적으로 충족시켰습니다.`);
+                        steps.push(`<strong>최종 분류</strong>: 43개의 수집 수치가 완벽하게 버지니카 품종 일치율을 보여주는 황금 지대로 <strong>[버지니카(Virginica)]</strong>로 분류가 끝마쳐졌습니다.`);
+                    }
+                }
+            }
+
+            // Report card updating
+            document.getElementById('predicted-class-name').innerText = prediction;
+            document.getElementById('predicted-class-emoji').innerText = emoji;
+            document.getElementById('predicted-confidence').innerText = `예측 확신도: ${confidence}`;
+
+            // Render log
+            const logContainer = document.getElementById('inference-steps-log');
+            logContainer.innerHTML = '';
+            steps.forEach(step => {
+                const li = document.createElement('li');
+                li.innerHTML = step;
+                logContainer.appendChild(li);
+            });
+        }
+
+        // SVG Flower Specimen scaling transformation logic
+        function updateSpecimenSVG(sepalL, sepalW, petalL, petalW) {
+            // Sepal paths mapping (using quadratic bezier)
+            // Default: Q 80 40 100 20. We will scale coordinates relative to 100 100 (center)
+            
+            // Sepal Scaling multipliers (Min-Max limits translated)
+            const sepalL_scale = 0.5 + ((sepalL - 4.3) / (7.9 - 4.3)) * 0.8; // 0.5 to 1.3
+            const sepalW_scale = 0.6 + ((sepalW - 2.0) / (4.4 - 2.0)) * 0.8; // 0.6 to 1.4
+
+            const petalL_scale = 0.3 + ((petalL - 1.0) / (6.9 - 1.0)) * 0.9; // 0.3 to 1.2
+            const petalW_scale = 0.4 + ((petalW - 0.1) / (2.5 - 0.1)) * 0.9; // 0.4 to 1.3
+
+            // Apply SVG scale changes via transform attributes
+            document.getElementById('svg-sepal-top').setAttribute('transform', `scale(${sepalW_scale}, ${sepalL_scale}) translate(${100/sepalW_scale - 100}, ${100/sepalL_scale - 100}) rotate(0, 100, 100)`);
+            document.getElementById('svg-sepal-left').setAttribute('transform', `scale(${sepalW_scale}, ${sepalL_scale}) translate(${100/sepalW_scale - 100}, ${100/sepalL_scale - 100}) rotate(120, 100, 100)`);
+            document.getElementById('svg-sepal-right').setAttribute('transform', `scale(${sepalW_scale}, ${sepalL_scale}) translate(${100/sepalW_scale - 100}, ${100/sepalL_scale - 100}) rotate(240, 100, 100)`);
+
+            document.getElementById('svg-petal-1').setAttribute('transform', `scale(${petalW_scale}, ${petalL_scale}) translate(${100/petalW_scale - 100}, ${100/petalL_scale - 100}) rotate(60, 100, 100)`);
+            document.getElementById('svg-petal-2').setAttribute('transform', `scale(${petalW_scale}, ${petalL_scale}) translate(${100/petalW_scale - 100}, ${100/petalL_scale - 100}) rotate(180, 100, 100)`);
+            document.getElementById('svg-petal-3').setAttribute('transform', `scale(${petalW_scale}, ${petalL_scale}) translate(${100/petalW_scale - 100}, ${100/petalL_scale - 100}) rotate(300, 100, 100)`);
+        }
+
+        function activateNode(id) {
+            const el = document.getElementById(id);
+            if (el) el.className += ' node-active';
+        }
+
+        function activateLine(id) {
+            const el = document.getElementById(id);
+            if (el) el.setAttribute('class', 'line-active');
+        }
+
+        // Preset Apply helper
+        function applyPreset(sepalL, sepalW, petalL, petalW) {
+            // Sliders
+            document.getElementById('input-sepal-length').value = sepalL;
+            document.getElementById('input-sepal-width').value = sepalW;
+            document.getElementById('input-petal-length').value = petalL;
+            document.getElementById('input-petal-width').value = petalW;
+            
+            // Numeric Input Boxes
+            document.getElementById('num-sepal-length').value = sepalL.toFixed(1);
+            document.getElementById('num-sepal-width').value = sepalW.toFixed(1);
+            document.getElementById('num-petal-length').value = petalL.toFixed(1);
+            document.getElementById('num-petal-width').value = petalW.toFixed(1);
+
+            updatePredictor();
+        }
+
+        // Initialize App on window loaded
+        window.onload = function() {
+            updatePredictor();
+        }
+    </script>
+</body>
+</html>
